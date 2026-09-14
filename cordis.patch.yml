@@ -1,0 +1,7 @@
+# dsh-context - informational copy of the row installed by install.ps1.
+# The live row lives in %DSH_HOME%\profiles\web\cordis.patch.yml and points at
+# the installed copy under %DSH_HOME%\plugins\dsh-context\host.mjs.
+- insert:
+  - name: file:///C:/Users/Vad/.dsh/plugins/dsh-context/host.mjs
+    config:
+      enabled: true

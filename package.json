@@ -1,0 +1,20 @@
+{
+	"name": "dsh-context",
+	"version": "1.1.0",
+	"private": true,
+	"type": "module",
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"inject": ["@deepseek-ai/dsh-client-ui-settings-plugins"]
+		}
+	},
+	"exports": {
+		".": "./host.mjs",
+		"./client": "./client.js",
+		"./package.json": "./package.json"
+	}
+}
