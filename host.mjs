@@ -9,13 +9,23 @@
  * 1) The `context-view` settings section — a hand-rolled, schemastery-compatible
  *    node whose `toJSON()` yields the `{ uid, refs }` envelope the settings
  *    provider serializes to the wire. Its `enabled` flag drives the
- *    Settings → Plugins switch and gates the HTTP routes below.
+ *    Settings → Plugins switch and gates the HTTP routes below; its `pins`
+ *    string is the verbatim pin board (JSON array, mirrored live to clients).
  * 2) `/context-view/*` HTTP routes for the context panel:
  *    - GET /context-view/snapshot?session=<id> — the exact model-visible
  *      surface of one open Session, projected into numbered blocks: the
  *      request header (system prompt, tools) plus every surface event in
  *      head-to-tail order, with per-block token prices taken from the
  *      token-meter service when it is mounted (heuristic fallback otherwise).
+ *    - POST /context-view/unload {session, seq?} — queued MANUAL compaction
+ *      (the engine's compactNow, the same transaction the /compact command
+ *      runs): resolves the session's live agent, reaches the `compaction`
+ *      service in the agent's scoped realm, folds the oldest surface prefix
+ *      into one in-place summary checkpoint, and waits out any busy turn.
+ *    - POST /context-view/remind {session, text, summary?} — append one
+ *      plugin-sourced notice (`user/message`, surface append) to the live
+ *      session: a pinned fragment becomes model-visible context without
+ *      opening a turn or waking the agent.
  *    - GET /context-view/health — canary for troubleshooting.
  */
 
@@ -25,34 +35,69 @@ export const name = 'context-view'
 
 /** Allowed panel languages; `auto` follows the GUI locale. */
 const LANGUAGES = ['auto', 'en', 'ru']
+/** Pins are one JSON-string settings value; these are the storage ceilings. */
+const PIN_MAX_COUNT = 500
+const PIN_MAX_TEXT = 32000
+const PINS_MAX_CHARS = 600000
+
+/** Normalize the raw pins JSON string: valid array, shape-checked, capped. */
+function normalizePinsRaw(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return '[]'
+  if (raw.length > PINS_MAX_CHARS + 20000) return '[]'
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return '[]'
+  }
+  if (!Array.isArray(parsed)) return '[]'
+  const clean = []
+  for (const pin of parsed) {
+    if (pin === null || typeof pin !== 'object' || Array.isArray(pin)) continue
+    if (typeof pin.id !== 'string' || pin.id === '' || pin.id.length > 64) continue
+    if (typeof pin.text !== 'string' || pin.text === '' || pin.text.length > PIN_MAX_TEXT) continue
+    if (clean.length >= PIN_MAX_COUNT) break
+    const title = typeof pin.title === 'string' ? pin.title.replace(/\s+/g, ' ').trim().slice(0, 120) : ''
+    clean.push({
+      id: pin.id,
+      session: typeof pin.session === 'string' ? pin.session : '',
+      text: pin.text,
+      time: typeof pin.time === 'number' && Number.isFinite(pin.time) ? pin.time : 0,
+      ...(title === '' ? {} : { title }),
+    })
+  }
+  return JSON.stringify(clean)
+}
 
 /** Validate and normalize one merged settings candidate. Never throws. */
 function resolveContextViewSection(candidate) {
   if (candidate === undefined || candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) {
-    return { enabled: true, language: 'auto' }
+    return { enabled: true, language: 'auto', pins: '[]' }
   }
   const enabled = typeof candidate.enabled === 'boolean' ? candidate.enabled : true
   const language = typeof candidate.language === 'string' && LANGUAGES.includes(candidate.language) ? candidate.language : 'auto'
-  return { ...candidate, enabled, language }
+  const pins = normalizePinsRaw(candidate.pins)
+  return { ...candidate, enabled, language, pins }
 }
 
-/** Build the schemastery-compatible node for `{ enabled, language }`. */
+/** Build the schemastery-compatible node for `{ enabled, language, pins }`. */
 function createContextViewSchema() {
   const refs = {
-    0: { type: 'object', meta: {}, dict: { enabled: 1, language: 2 } },
+    0: { type: 'object', meta: {}, dict: { enabled: 1, language: 2, pins: 3 } },
     1: { type: 'boolean', meta: { default: true } },
     2: { type: 'string', meta: { default: 'auto' } },
+    3: { type: 'string', meta: { default: '[]' } },
   }
   const schema = (candidate) => resolveContextViewSection(candidate)
   schema.type = 'object'
   schema.meta = refs[0].meta
-  schema.dict = { enabled: refs[1], language: refs[2] }
+  schema.dict = { enabled: refs[1], language: refs[2], pins: refs[3] }
   schema.toJSON = () => ({ uid: 0, refs })
   return schema
 }
 
 /** Resolved section state for diagnostics and route gating. */
-const viewState = { enabled: true, language: 'auto' }
+const viewState = { enabled: true, language: 'auto', pins: '[]' }
 
 // ─── context snapshot construction ───────────────────────────────────────────
 
@@ -307,6 +352,197 @@ function buildSnapshot(ctx, session, sessionId) {
   }
 }
 
+// ─── unload (manual compaction, queued) ──────────────────────────────────────
+// Engine reality: the public `compactRegion` only runs inside an OPEN turn
+// (automatic in-loop compaction), so an outside request can never use it
+// safely. The manual path for a quiet session is `compactNow` — exactly what
+// the shipped `/compact` command runs: it wraps itself in a maintenance turn
+// and folds the oldest useful prefix of the live surface into ONE checkpoint,
+// placed IN PLACE at the head of the folded range (not appended at the end).
+// The compaction service itself is mounted in each AGENT's scoped realm (the
+// host plane disables compaction-basic), so the route reaches it through
+// `agents.get(id).ctx`. While the agent is mid-turn, `compactNow` fails with
+// ManualCompactionError('busy') — so the request QUEUES here: the response is
+// held open and retried until the chat goes quiet or patience runs out.
+const UNLOAD_WAIT_MS = 10 * 60 * 1000
+const UNLOAD_RETRY_MS = 2000
+
+/** Read and JSON-parse a small request body without any Buffer globals. */
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    const parts = []
+    let size = 0
+    req.on('data', (chunk) => {
+      size += chunk.length
+      if (size > 262144) {
+        reject(new Error('body too large'))
+        try {
+          req.destroy()
+        } catch {
+          // Already gone.
+        }
+        return
+      }
+      parts.push(typeof chunk === 'string' ? chunk : String(chunk))
+    })
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(parts.join('')))
+      } catch (error) {
+        reject(error)
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function isBusyError(error) {
+  if (error === null || typeof error !== 'object') return false
+  if (error.code === 'busy') return true
+  return typeof error.message === 'string' && /already has active work|requires an idle agent/i.test(error.message)
+}
+
+async function handleUnload(ctx, req, res) {
+  if (req.method !== 'POST') return void respond(res, 405, 'text/plain', 'POST only')
+  if (viewState.enabled !== true) return void respondJson(res, 404, { error: 'context-view is disabled' })
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (error) {
+    return void respondJson(res, 400, { error: 'bad-request', message: error && error.message ? error.message : String(error) })
+  }
+  const sessionId = typeof body.session === 'string' ? body.session : ''
+  const targetSeq = Number.isInteger(Number(body.seq)) ? Number(body.seq) : null
+  if (sessionId === '') return void respondJson(res, 400, { error: 'bad-request' })
+  const sessions = ctx.get('sessions')
+  if (sessions === undefined) return void respondJson(res, 503, { error: 'sessions-unavailable' })
+  const agents = ctx.get('agents')
+  const controller = new AbortController()
+  const deadline = Date.now() + UNLOAD_WAIT_MS
+  let queued = false
+  for (;;) {
+    let session
+    try {
+      session = sessions.get(sessionId)
+    } catch {
+      session = undefined
+    }
+    if (session === undefined) {
+      return void respondJson(res, queued ? 502 : 404, { error: 'session-not-open', sessionId })
+    }
+    let agent
+    try {
+      agent = agents !== undefined ? agents.get(sessionId) : undefined
+    } catch {
+      agent = undefined
+    }
+    if (agent === undefined) return void respondJson(res, 503, { error: 'agent-not-attached', sessionId })
+    let compaction
+    if (agent.ctx !== undefined && typeof agent.ctx.get === 'function') {
+      try {
+        compaction = agent.ctx.get('compaction')
+      } catch {
+        compaction = undefined
+      }
+    }
+    if (compaction === undefined) compaction = ctx.get('compaction')
+    if (compaction === undefined || typeof compaction.compactNow !== 'function') {
+      return void respondJson(res, 503, { error: 'compaction-unavailable' })
+    }
+    let result
+    try {
+      result = await compaction.compactNow(agent, controller.signal)
+    } catch (error) {
+      if (!isBusyError(error)) {
+        return void respondJson(res, 502, { error: 'unload-failed', message: error && error.message ? error.message : String(error) })
+      }
+      queued = true
+      if (Date.now() > deadline) {
+        return void respondJson(res, 504, { error: 'agent-stayed-busy', message: 'the chat never became free in time; nothing was compacted' })
+      }
+      if (res.writableEnded) return // the panel went away mid-queue; stop responding
+      await sleep(UNLOAD_RETRY_MS)
+      continue
+    }
+    if (result === null) return void respondJson(res, 200, { ok: false, reason: 'nothing-to-compact', queued })
+    const surface = session.surface && Array.isArray(session.surface.nodes) ? session.surface.nodes.map(Number) : []
+    respondJson(res, 200, {
+      ok: true,
+      queued,
+      shadowed: Array.isArray(result.shadowedSeqs) ? result.shadowedSeqs.length : null,
+      shadowedTokens: typeof result.shadowedTokenCount === 'number' ? result.shadowedTokenCount : null,
+      summarySeq: typeof result.summarySeq === 'number' ? result.summarySeq : null,
+      ...(targetSeq === null ? {} : { targetCompacted: surface.indexOf(targetSeq) < 0 }),
+    })
+    return
+  }
+}
+
+
+// ─── remind (inject a pin back into the live context as a notice) ────────────
+// "Remind" takes the pinned fragment verbatim, banners it with a reminder
+// header, and appends it to the live session surface as a plugin-sourced
+// `user/message` notice — exactly how the harness itself injects runtime
+// context (plan-mode, repeat-tool-guard, agent-instructions). The node is
+// model-visible for the NEXT request and renders in the chat, but the route
+// issues no wake: no turn opens, the model does not start analyzing anything,
+// no tokens are spent until the session next runs. The board card stays.
+
+const REMIND_MAX_TEXT = 32000
+
+async function handleRemind(ctx, req, res) {
+  if (req.method !== 'POST') return void respond(res, 405, 'text/plain', 'POST only')
+  if (viewState.enabled !== true) return void respondJson(res, 404, { error: 'context-view is disabled' })
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (error) {
+    return void respondJson(res, 400, { error: 'bad-request', message: error && error.message ? error.message : String(error) })
+  }
+  const sessionId = typeof body.session === 'string' ? body.session : ''
+  const text = typeof body.text === 'string' ? body.text : ''
+  const summary = typeof body.summary === 'string' ? body.summary.replace(/\s+/g, ' ').trim().slice(0, 200) : ''
+  if (sessionId === '' || text.trim() === '' || text.length > REMIND_MAX_TEXT) {
+    return void respondJson(res, 400, { error: 'bad-request' })
+  }
+  const sessions = ctx.get('sessions')
+  if (sessions === undefined) return void respondJson(res, 503, { error: 'sessions-unavailable' })
+  let session
+  try {
+    session = sessions.get(sessionId)
+  } catch {
+    session = undefined
+  }
+  if (session === undefined) return void respondJson(res, 404, { error: 'session-not-open', sessionId })
+  const rand = globalThis.crypto !== undefined && typeof globalThis.crypto.randomUUID === 'function'
+    ? String(globalThis.crypto.randomUUID())
+    : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)
+  const message = {
+    id: 'dsh-context-' + rand,
+    role: 'user',
+    content: [{ type: 'text', text }],
+    source: {
+      kind: 'plugin',
+      plugin: 'dsh-context',
+      form: 'notice',
+      ...(summary === '' ? {} : { summary }),
+    },
+  }
+  try {
+    const event = session.append('user/message', message, { surfaceOp: 'append' })
+    respondJson(res, 200, { ok: true, ...(event && typeof event.seq === 'number' ? { seq: event.seq } : {}) })
+  } catch (error) {
+    respondJson(res, 502, { error: 'remind-failed', message: error && error.message ? error.message : String(error) })
+  }
+}
+
+
 // ─── routes ──────────────────────────────────────────────────────────────────
 
 function respond(res, code, contentType, body) {
@@ -328,6 +564,8 @@ function handleRequest(ctx, req, res) {
   let path = url.pathname
   if (path.startsWith('/context-view')) path = path.slice('/context-view'.length)
   if (path === '' || !path.startsWith('/')) path = '/'
+  if (path === '/unload') return void handleUnload(ctx, req, res)
+  if (path === '/remind') return void handleRemind(ctx, req, res)
   if (req.method !== 'GET' && req.method !== 'HEAD') return void respond(res, 405, 'text/plain', 'GET only')
   if (path === '/health') return void respond(res, 200, 'text/plain', 'ok')
   if (path !== '/snapshot') return void respond(res, 404, 'text/plain', 'unknown context-view route')
@@ -365,7 +603,7 @@ export function apply(ctx, config) {
   // The settings service may mount after this row (file:// inserts run early in
   // the layer); wait for it reactively so the card never races the provider.
   const registerSection = (settingsCtx) => {
-    settingsCtx.settings.installSection(settingsCtx, 'context-view', createContextViewSchema(), { enabled: viewState.enabled, language: viewState.language }, {
+    settingsCtx.settings.installSection(settingsCtx, 'context-view', createContextViewSchema(), { enabled: viewState.enabled, language: viewState.language, pins: viewState.pins }, {
       setSource: (current) => {
         Object.assign(viewState, resolveContextViewSection(current))
       },
@@ -380,7 +618,7 @@ export function apply(ctx, config) {
   const registerRoutes = (webCtx) => {
     webCtx.effect(
       () => webCtx.webServer.register({ kind: 'prefix', path: '/context-view', handler: (req, res) => handleRequest(ctx, req, res) }),
-      'context-view: snapshot routes',
+      'context-view: panel routes',
     )
   }
   if (ctx.get('webServer') === undefined) ctx.inject(['webServer'], registerRoutes)

@@ -50,6 +50,7 @@ window.__ModuleLoader__.load({
 			".cv-note{margin:8px 2px;font-size:12px;line-height:16px;color:var(--dsw-alias-label-tertiary)}",
 			".cv-block{box-sizing:border-box;padding:6px 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:10px;background:var(--dsw-alias-fill-l1,transparent);cursor:default;transform-origin:left top;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}",
 			".cv-block:hover{transform:scale(1.008);border-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-flat,var(--dsw-elevation-prominent))}",
+			".cv-block{cursor:pointer}",
 			".cv-blockHead{display:flex;align-items:center;gap:7px;min-width:0}",
 			".cv-num{flex:none;min-width:20px;padding:0 5px;border-radius:6px;background:var(--dsw-alias-fill-l2);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}",
 			".cv-kind{flex:none;display:inline-block;min-width:64px;padding:0 6px;border-radius:6px;font-size:10px;font-weight:600;line-height:18px;text-align:center;white-space:nowrap;color:#fff}",
@@ -57,6 +58,7 @@ window.__ModuleLoader__.load({
 			".cv-kindAssistant{background:#8b5cf6}",
 			".cv-kindContext{background:#0ea5a4}",
 			".cv-kindCompaction{background:#d97706}",
+			".cv-kindPinned{background:#10b981}",
 			".cv-kindToolresult{background:#f97316}",
 			".cv-kindTools{background:#64748b}",
 			".cv-kindSystemprompt{background:#22c55e}",
@@ -68,12 +70,45 @@ window.__ModuleLoader__.load({
 			   transition — the previous source of the hover jank). */
 			".cv-body{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .2s ease,opacity .16s ease}",
 			".cv-block:hover .cv-body{grid-template-rows:1fr;opacity:1}",
+			/* A click pins a block open; the pin survives hover-out and refreshes. */
+			".cv-blockOpen .cv-body{grid-template-rows:1fr;opacity:1}",
+			".cv-blockOpen:hover .cv-body{grid-template-rows:1fr;opacity:1}",
+			".cv-blockOpen{border-color:var(--dsw-alias-border-l1)}",
 			".cv-bodyInner{min-height:0;overflow:hidden}",
 			".cv-scroll{max-height:260px;overflow-y:auto;overflow-x:hidden;margin-top:6px}",
 			".cv-meta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}",
 			".cv-metaItem strong{font-weight:600;color:var(--dsw-alias-label-secondary)}",
 			".cv-text{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(--dsw-font-mono,ui-monospace,monospace);font-size:11px;line-height:15px;color:var(--dsw-alias-label-secondary)}",
 			".cv-truncated{margin-top:4px;font-size:11px;color:var(--dsw-alias-label-tertiary)}",
+			/* Dialog mode renders messages as block cards too (same hover
+			   expansion); the body is real Markdown through MarkdownText.
+			   The sizing overrides tame headings inside a compact window. */
+			".cv-md{font-size:12px;line-height:16px;color:var(--dsw-alias-label-secondary);word-break:break-word}",
+			".cv-md :is(h1,h2,h3,h4,h5,h6){font-size:13px;line-height:18px;margin:6px 0 2px;color:var(--dsw-alias-label-primary)}",
+			".cv-md :is(p,ul,ol,blockquote){margin:3px 0}",
+			".cv-md :is(ul,ol){padding-left:18px}",
+			".cv-md pre{max-width:100%;overflow-x:auto;font-size:11px;line-height:15px}",
+			".cv-md code{font-size:11px}",
+			".cv-md table{font-size:11px}",
+			/* Compaction translation control (inside the expanded body). */
+			".cv-trBar{display:flex;align-items:center;gap:6px;margin:0 0 6px}",
+			".cv-trGo{height:20px;padding:0 9px;border:1px solid var(--dsw-alias-border-l3);border-radius:999px;background:var(--dsw-alias-fill-l2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:18px;cursor:pointer;white-space:nowrap}",
+			".cv-trGo:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-fill-l3,var(--dsw-alias-fill-l2))}",
+			".cv-trBusy{font-size:10.5px;color:var(--dsw-alias-label-tertiary)}",
+			".cv-trDanger{color:#ef4444;border-color:rgba(239,68,68,.35)}",
+			".cv-trDanger:hover{color:#dc2626;background:rgba(239,68,68,.10)}",
+			".cv-nameInput{flex:1;min-width:0;height:18px;padding:0 6px;border:1px solid var(--dsw-alias-border-l3);border-radius:6px;background:var(--dsw-alias-fill-l1);color:var(--dsw-alias-label-primary);font-size:11px}",
+			".cv-pinNamed{color:var(--dsw-alias-label-primary);font-weight:600}",
+			".cv-mergeInput{flex:0 0 3.5em;width:3.5em;text-align:center}",
+			".cv-grip{flex:0 0 auto;padding:0 2px;font-size:13px;line-height:1;opacity:.45;cursor:grab;user-select:none}",
+			".cv-grip:hover{opacity:1}",
+			".cv-dragging{opacity:.4}",
+			".cv-dropTarget{border-color:#10b981;box-shadow:inset 0 0 0 1px #10b981}",
+			/* The \"To context\" button, seated in the chat header corner. */
+			".cv-selbtn{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:8px;background:var(--dsw-alias-fill-l2);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:18px;cursor:pointer;white-space:nowrap;user-select:none;transition:color .12s ease,background .12s ease,border-color .12s ease}",
+			".cv-selbtn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-fill-l3,var(--dsw-alias-fill-l2))}",
+			".cv-selbtnOk{color:#22c55e}",
+			".cv-selbtnFail{color:#ef4444}",
 			".cv-grip{position:absolute;z-index:2;touch-action:none}",
 			".cv-gripE{top:0;right:0;bottom:0;width:6px;cursor:ew-resize}",
 			".cv-gripS{left:0;right:0;bottom:0;height:6px;cursor:ns-resize}",
@@ -140,8 +175,40 @@ window.__ModuleLoader__.load({
 			"meta.range": "range",
 			"meta.error": "error",
 			"truncated": "text cut for transport",
+			"mode.blocks": "Blocks",
+			"mode.dialog": "Dialog",
+			"addctx.label": "To context",
+			"addctx.hint": "Pin the selected fragment to the dialog board (the model is not involved)",
+			"addctx.ok": "Pinned",
+			"addctx.fail": "Failed",
+			"md.copy": "Copy",
+			"md.copied": "Copied",
+			"md.footnotes": "Footnotes",
+			"pin.label": "pinned",
+			"pin.empty": "The board is empty. Select any text in the chat and press \"To context\" in the top corner of the chat — the fragment is stored verbatim here and survives context compaction.",
+			"pin.rename": "Rename",
+			"pin.namePh": "Block name",
+			"pin.mergeTo": "Merge into №",
+			"pin.mergeToHint": "Type the target block's number (1, 2, 3…) to join this fragment into it, separated by a rule; this card then leaves the board",
+			"pin.mergePh": "№",
+			"pin.remove": "Remove from dialog",
+			"pin.remind": "Remind",
+			"pin.remindHint": "Send this fragment into the live context under a \"---Reminder---\" banner: the model will see it in the next message, but wakes up and analyzes nothing right now. The card stays on the board.",
+			"pin.reminding": "Sending…",
+			"pin.remindOk": "Sent",
+			"pin.remindFail": "Failed — session open?",
+			"remind.prefix": "---Reminder---",
+			"remind.tag": "Reminder",
+			"pin.drag": "Drag to reorder the board",
+			"unload.label": "Unload to compaction",
+			"unload.hint": "Ask the compaction engine to fold the oldest context into one summary. It runs when the chat is free — if the agent is mid-turn this waits — and lands the summary in place, not at the end. Pinned dialog copies are never touched.",
+			"unload.busy": "Waiting for a free moment…",
+			"unload.ok": "Sent — the block was replaced by a summary",
+			"unload.nothing": "Nothing older to fold — recent blocks stay",
+			"unload.fail": "Failed — try again",
+			"stats.pins": "pinned",
 			"settings.title": "Context panel",
-			"settings.description": "A button beside the context % ring opens a floating window that lists, in numbered blocks, everything currently in the model context. Hover a block to expand it; drag the header, resize by the edges.",
+			"settings.description": "A button beside the context % ring opens a floating window with two views. The Dialog board keeps fragments you pinned yourself (select text, press \"To context\" in the top corner of the chat) — stored verbatim, never compressed, the model is not involved; cards can be renamed (double-click the title), merged into a block by its number, reordered by dragging the grip, and \"Remind\" sends a fragment into the live context under a ---Reminder--- banner without waking the model. Blocks shows the live model context, where any block can be sent to compaction (\"Unload\") — pressed any time, it runs the moment the chat goes quiet and folds the oldest content in place. The window drags by its header and resizes from the right/bottom edges.",
 			"settings.switch": "Show the context panel button",
 			"settings.language": "Language",
 			"settings.languageAuto": "Auto"
@@ -185,15 +252,47 @@ window.__ModuleLoader__.load({
 			"meta.range": "диапазон",
 			"meta.error": "ошибка",
 			"truncated": "текст обрезан при передаче",
+			"mode.blocks": "Блоки",
+			"mode.dialog": "Диалог",
+			"addctx.label": "В контекст",
+			"addctx.hint": "Закрепить выделенный фрагмент в окне «Диалог» (модель в этом не участвует)",
+			"addctx.ok": "Закреплено",
+			"addctx.fail": "Не вышло",
+			"md.copy": "Копировать",
+			"md.copied": "Скопировано",
+			"md.footnotes": "Сноски",
+			"pin.label": "закреплено",
+			"pin.empty": "Доска пуста. Выделите любой текст в чате и нажмите «В контекст» в верхнем углу чата — фрагмент хранится здесь дословно и переживает сжатие контекста.",
+			"pin.rename": "Переименовать",
+			"pin.namePh": "Имя блока",
+			"pin.mergeTo": "Слить в №",
+			"pin.mergeToHint": "Введите номер блока-цели (1, 2, 3…), чтобы присоединить этот фрагмент к нему через разделитель; эта карточка уйдёт с доски",
+			"pin.mergePh": "№",
+			"pin.remove": "Убрать из диалога",
+			"pin.remind": "Напомнить",
+			"pin.remindHint": "Отправить этот фрагмент в живой контекст под шапкой «---Напоминание---»: модель увидит его в следующем сообщении, но сейчас не просыпается и ничего не анализирует. Карточка остаётся на доске.",
+			"pin.reminding": "Отправляю…",
+			"pin.remindOk": "Отправлено",
+			"pin.remindFail": "Не вышло — сессия открыта?",
+			"remind.prefix": "---Напоминание---",
+			"remind.tag": "Напоминание",
+			"pin.drag": "Перетащите, чтобы поменять порядок",
+			"unload.label": "Выгрузить на сжатие",
+			"unload.hint": "Просьба движку компакции свернуть самое старое содержимое в одну сводку. Выполняется, когда чат свободен: если агент посреди хода — подождёт. Сводка встаёт на место свёрнутого, а не в конец. Закреплённые копии в «Диалоге» не трогаются.",
+			"unload.busy": "Жду, когда чат освободится…",
+			"unload.ok": "Выгружено — блок заменён сводкой",
+			"unload.nothing": "Сворачивать уже нечего — свежие блоки остаются",
+			"unload.fail": "Не вышло — ещё раз",
+			"stats.pins": "закреплено",
 			"settings.title": "Панель контекста",
-			"settings.description": "Кнопка рядом с кольцом контекста % открывает плавающее окно, где по нумерованным блокам показано всё, что сейчас в контексте модели. Блок раскрывается при наведении; окно перемещается за заголовок и растягивается за края.",
+			"settings.description": "Кнопка рядом с кольцом контекста % открывает плавающее окно с двумя видами. «Диалог» — доска закреплённых вами фрагментов (выделите текст и нажмите «В контекст» в верхнем углу чата): хранятся дословно, не сжимаются, модель в этом не участвует; карточки можно переименовывать (двойной клик по заголовку), сливать с блоком по номеру, менять порядок перетаскиванием за ⠿, а «Напомнить» отправляет фрагмент в живой контекст под шапкой «---Напоминание---», не будя модель. «Блоки» — живой контекст модели, где любой блок можно выгрузить на сжатие: нажимайте в любой момент, выполнится, когда чат освободится, — свёрнутая сводка встанет на место старого содержимого. Окно перемещается за заголовок и растягивается за правый/нижний края.",
 			"settings.switch": "Показывать кнопку панели контекста",
 			"settings.language": "Язык",
 			"settings.languageAuto": "Авто"
 		};
 		//#endregion
 		//#region helpers
-		const { Switch } = primitives;
+		const { Switch, MarkdownText } = primitives;
 		function identity(value) {
 			return value;
 		}
@@ -205,10 +304,15 @@ window.__ModuleLoader__.load({
 		function dictT(dict) {
 			return (key) => (dict[key] !== undefined ? dict[key] : (en[key] !== undefined ? en[key] : key));
 		}
+		// Stable translator identities: MarkdownText caches on the labels
+		// object, which is built from these, so a new function per render
+		// would discard the markdown render cache every refresh tick.
+		const T_EN = dictT(en);
+		const T_RU = dictT(ru);
 		/** The seat locale chain, with the built-in English map as its terminus. */
 		function resolveT(seatT) {
 			if (typeof seatT === "function") return seatT;
-			return dictT(en);
+			return T_EN;
 		}
 		/**
 		 * Language resolution: an explicit `en`/`ru` setting pins that
@@ -216,8 +320,8 @@ window.__ModuleLoader__.load({
 		 */
 		function pickT(cv, seatT) {
 			if (cv.status === "ready" && cv.value) {
-				if (cv.value.language === "ru") return dictT(ru);
-				if (cv.value.language === "en") return dictT(en);
+				if (cv.value.language === "ru") return T_RU;
+				if (cv.value.language === "en") return T_EN;
 			}
 			return resolveT(seatT);
 		}
@@ -262,6 +366,35 @@ window.__ModuleLoader__.load({
 				" " + String(value)
 			);
 		}
+		/** Storage ceilings mirrored from the host's pin normalizer. */
+		const PIN_MAX_TEXT = 32000;
+		const PIN_MAX_COUNT = 500;
+		const PINS_TOTAL_CHARS = 600000;
+		/** Surface blocks whose kind a single-node compaction span accepts. */
+		const UNLOADABLE_KINDS = { user: true, assistant: true, context: true, "tool-result": true, compaction: true };
+		/**
+		 * Parse the settings `pins` JSON string into well-shaped pin objects.
+		 * Pins are the dialog board: user-pinned fragments stored verbatim,
+		 * surviving compaction because they never live in the model context.
+		 */
+		function parsePins(raw) {
+			if (typeof raw !== "string" || raw === "") return [];
+			let parsed;
+			try {
+				parsed = JSON.parse(raw);
+			} catch {
+				return [];
+			}
+			if (!Array.isArray(parsed)) return [];
+			const pins = [];
+			for (const pin of parsed) {
+				if (pin === null || typeof pin !== "object") continue;
+				if (typeof pin.id !== "string" || pin.id === "") continue;
+				if (typeof pin.text !== "string" || pin.text === "") continue;
+				pins.push(pin);
+			}
+			return pins;
+		}
 		/**
 		 * Minimal observable store shared between the composer button and the
 		 * overlay window (same bundle closure): open flag + owning session.
@@ -281,6 +414,25 @@ window.__ModuleLoader__.load({
 					return () => listeners.delete(listener);
 				}
 			};
+		}
+		//#endregion
+		//#region view mode (dialog / all blocks)
+		const MODE_KEY = "context-view.mode";
+		/** Read the persisted view mode; the clean dialog is the default. */
+		function readMode() {
+			try {
+				const raw = localStorage.getItem(MODE_KEY);
+				return raw === "blocks" ? "blocks" : "dialog";
+			} catch {
+				return "dialog";
+			}
+		}
+		function writeMode(mode) {
+			try {
+				localStorage.setItem(MODE_KEY, mode);
+			} catch {
+				// Unwritable storage keeps the mode session-only.
+			}
 		}
 		//#endregion
 		//#region window layout (drag + resize, localStorage-persisted)
@@ -371,8 +523,175 @@ window.__ModuleLoader__.load({
 			);
 		}
 		//#endregion
+		//#region dialog (pin board) view
+		/**
+		 * One pinned fragment: the block-card look (number, chip, one-line
+		 * preview, hover-expand, click-pin) with the verbatim text rendered as
+		 * Markdown, plus board actions: rename, merge INTO BLOCK №N (the
+		 * number printed on the target card), REMIND (hand the fragment back
+		 * to the live context under a reminder banner — the model is not
+		 * woken, the card stays), remove; and a grip for drag-reordering.
+		 * Pins live in the plugin settings — the model never sees them unless
+		 * reminded.
+		 */
+		function PinBlockView(props) {
+			const pin = props.pin;
+			const t = props.t;
+			const text = String(pin.text === undefined ? "" : pin.text);
+			const title = typeof pin.title === "string" ? pin.title : "";
+			const flat = text.replace(/[*`#>_~]/g, "").replace(/^\s*[-+]\s+/gm, "").replace(/\s+/g, " ").trim();
+			const preview = flat.length > 160 ? flat.slice(0, 160) + "…" : flat;
+			const time = formatTime(pin.time);
+			const metaBits = [];
+			if (time !== "") metaBits.push(t("meta.time") + ": " + time);
+			metaBits.push(t("meta.chars") + ": " + String(text.length));
+			const [editing, setEditing] = react.useState(false);
+			const [merging, setMerging] = react.useState(false);
+			const [remind, setRemind] = react.useState("idle");
+			const commit = (event) => {
+				setEditing(false);
+				const next = event.target.value.replace(/\s+/g, " ").trim().slice(0, 120);
+				if (next !== title) props.onRename(next);
+			};
+			const commitMerge = (event) => {
+				setMerging(false);
+				const target = parseInt(event.target.value, 10);
+				if (Number.isFinite(target) && target >= 1 && target <= props.total && target !== props.index + 1) {
+					props.onMergeTo(target);
+				}
+			};
+			const doRemind = () => {
+				if (remind === "busy") return;
+				setRemind("busy");
+				Promise.resolve(props.onRemind()).then((ok) => {
+					if (ok === true) {
+						setRemind("ok");
+						setTimeout(() => { setRemind("idle"); }, 1600);
+					} else {
+						setRemind("fail");
+					}
+				}, () => { setRemind("fail"); });
+			};
+			const head = editing ? react.createElement("input", {
+				className: "cv-nameInput",
+				defaultValue: title,
+				placeholder: t("pin.namePh"),
+				autoFocus: true,
+				onClick: (event) => { event.stopPropagation(); },
+				onKeyDown: (event) => {
+					event.stopPropagation();
+					if (event.key === "Enter") commit(event);
+					else if (event.key === "Escape") setEditing(false);
+				},
+				onBlur: commit
+			}) : react.createElement("span", {
+				className: title === "" ? "cv-preview" : "cv-preview cv-pinNamed",
+				title: t("pin.rename"),
+				onDoubleClick: (event) => {
+					event.stopPropagation();
+					setEditing(true);
+				}
+			}, title === "" ? preview : title);
+			return react.createElement("div", {
+				className: "cv-block"
+					+ (props.open ? " cv-blockOpen" : "")
+					+ (props.dragging === true ? " cv-dragging" : "")
+					+ (props.dropTarget === true ? " cv-dropTarget" : ""),
+				onDragOver: (event) => {
+					if (props.dragId === null || props.dragId === undefined || props.dragId === pin.id) return;
+					event.preventDefault();
+					props.onDragOver();
+				},
+				onDrop: (event) => {
+					event.preventDefault();
+					props.onDrop();
+				}
+			},
+				react.createElement("div", { className: "cv-blockHead", onClick: pinOnToggle(props) },
+					react.createElement("span", {
+						className: "cv-grip",
+						draggable: true,
+						title: t("pin.drag"),
+						onClick: (event) => { event.stopPropagation(); },
+						onDragStart: (event) => {
+							event.stopPropagation();
+							if (event.dataTransfer !== undefined && event.dataTransfer !== null) {
+								event.dataTransfer.effectAllowed = "move";
+								try { event.dataTransfer.setData("text/plain", pin.id); } catch { /* private mode */ }
+							}
+							props.onDragStart();
+						},
+						onDragEnd: () => { props.onDragEnd(); }
+					}, "⠿"),
+					react.createElement("span", { className: "cv-num" }, String(props.index + 1)),
+					react.createElement("span", { className: "cv-kind cv-kindPinned" }, t("pin.label")),
+					head,
+					react.createElement("span", { className: "cv-tokens" }, "~" + formatTokens(Math.round(text.length / 4) + 2))
+				),
+				react.createElement("div", { className: "cv-body" },
+					react.createElement("div", { className: "cv-bodyInner" },
+						react.createElement("div", { className: "cv-scroll cv-md" },
+							react.createElement("div", { className: "cv-trBar" },
+								react.createElement("span", { className: "cv-trBusy" }, metaBits.join(" · ")),
+								react.createElement("span", { style: { flex: "1" } }),
+								merging ? react.createElement("input", {
+									className: "cv-nameInput cv-mergeInput",
+									defaultValue: "",
+									placeholder: t("pin.mergePh"),
+									autoFocus: true,
+									title: t("pin.mergeToHint"),
+									onClick: (event) => { event.stopPropagation(); },
+									onKeyDown: (event) => {
+										event.stopPropagation();
+										if (event.key === "Enter") commitMerge(event);
+										else if (event.key === "Escape") setMerging(false);
+									},
+									onBlur: () => { setMerging(false); }
+								}) : props.total > 1 ? react.createElement("button", {
+									type: "button",
+									className: "cv-trGo",
+									title: t("pin.mergeToHint"),
+									onClick: () => { setMerging(true); }
+								}, t("pin.mergeTo")) : null,
+								react.createElement("button", {
+									type: "button",
+									className: "cv-trGo",
+									onClick: () => { setEditing(true); }
+								}, t("pin.rename")),
+								react.createElement("button", {
+									type: "button",
+									className: "cv-trGo",
+									title: t("pin.remindHint"),
+									disabled: remind === "busy",
+									onClick: doRemind
+								}, remind === "busy" ? t("pin.reminding") : remind === "ok" ? t("pin.remindOk") : remind === "fail" ? t("pin.remindFail") : t("pin.remind")),
+								react.createElement("button", {
+									type: "button",
+									className: "cv-trGo cv-trDanger",
+									onClick: props.onDelete
+								}, t("pin.remove"))
+							),
+							react.createElement(MarkdownText, { text, labels: props.labels })
+						)
+					)
+				)
+			);
+		}
+		//#endregion
 		//#region block view
 		/** One context block: collapsed row + smoothly animated full-information body. */
+		/**
+		 * A pin toggle that ignores the click ending a text selection:
+		 * selecting text inside a block must not collapse/re-pin it.
+		 */
+		function pinOnToggle(props) {
+			return (event) => {
+				event.stopPropagation();
+				const selection = typeof window !== "undefined" && typeof window.getSelection === "function" ? window.getSelection() : null;
+				if (selection !== null && !selection.isCollapsed) return;
+				props.onToggle();
+			};
+		}
 		function BlockView(props) {
 			const block = props.block;
 			const t = props.t;
@@ -390,8 +709,18 @@ window.__ModuleLoader__.load({
 			if (time !== "") meta.push(metaItem(t, "time", time));
 			if (block.chars !== undefined) meta.push(metaItem(t, "chars", block.chars));
 			const items = meta.filter(Boolean);
-			return react.createElement("div", { className: "cv-block" },
-				react.createElement("div", { className: "cv-blockHead" },
+			const busy = props.unloadStatus === "busy";
+			const unloadRow = props.canUnload ? react.createElement("div", { className: "cv-trBar" },
+				react.createElement("button", {
+					type: "button",
+					className: "cv-trGo cv-trDanger",
+					title: t("unload.hint"),
+					disabled: busy,
+					onClick: () => props.onUnload(block.seq)
+				}, busy ? t("unload.busy") : props.unloadStatus === "error" ? t("unload.fail") : props.unloadStatus === "none" ? t("unload.nothing") : t("unload.label"))
+			) : null;
+			return react.createElement("div", { className: props.open ? "cv-block cv-blockOpen" : "cv-block" },
+				react.createElement("div", { className: "cv-blockHead", onClick: pinOnToggle(props) },
 					react.createElement("span", { className: "cv-num" }, String(props.index + 1)),
 					react.createElement("span", { className: "cv-kind " + kindClass(block.kind) }, kindLabel(t, block.kind)),
 					react.createElement("span", { className: "cv-preview" }, block.preview === "" || block.preview === undefined ? (block.title || "") : block.preview),
@@ -400,6 +729,7 @@ window.__ModuleLoader__.load({
 				react.createElement("div", { className: "cv-body" },
 					react.createElement("div", { className: "cv-bodyInner" },
 						react.createElement("div", { className: "cv-scroll" },
+							unloadRow,
 							items.length > 0 ? react.createElement("div", { className: "cv-meta" }, items) : null,
 							block.text === "" && block.truncated ? react.createElement("pre", { className: "cv-text" }, "…") : react.createElement("pre", { className: "cv-text" }, block.text === "" ? "—" : block.text),
 							block.truncated ? react.createElement("div", { className: "cv-truncated" }, t("truncated")) : null
@@ -418,9 +748,33 @@ window.__ModuleLoader__.load({
 			const session = view.session;
 			const [layout, setLayout] = react.useState(() => readLayout() || defaultLayout());
 			const gesture = react.useRef(null);
+			const [mode, setMode] = react.useState(() => readMode());
+			const switchMode = (next) => {
+				setMode(next);
+				writeMode(next);
+			};
 			const [data, setData] = react.useState(null);
 			const [error, setError] = react.useState(null);
 			const [busy, setBusy] = react.useState(false);
+			// Blocks pinned open by a click; the set survives hover-out and the
+			// 5 s live refreshes (keys follow the block's seq).
+			const [pinned, setPinned] = react.useState(() => new Set());
+			const togglePin = (key) => {
+				setPinned((prev) => {
+					const next = new Set(prev);
+					if (next.has(key)) next.delete(key);
+					else next.add(key);
+					return next;
+				});
+			};
+			// Per-seq unload ("send to compaction") request states, and one-
+			// shot success toasts that clear on the next snapshot arrival.
+			const [unloads, setUnloads] = react.useState({});
+			// Dialog board drag-reorder state: the pin id being dragged and the
+			// card currently hovered as a drop target. Order on the board IS
+			// the order inside the pins array (filtered per session).
+			const [drag, setDrag] = react.useState(null);
+			const [over, setOver] = react.useState(null);
 			// Open scrolled to the bottom (the latest actions), and keep riding
 			// the bottom on live refreshes as long as the user has not scrolled
 			// up to read older blocks.
@@ -468,6 +822,32 @@ window.__ModuleLoader__.load({
 					.catch(() => setError("offline"))
 					.finally(() => setBusy(false));
 			}, [session]);
+			/**
+			 * Send the live context to manual compaction, anchored on this
+			 * block. The host queues the request while the agent is mid-turn,
+			 * so this fetch may stay pending for minutes — the card just keeps
+			 * showing "compacting" until the final answer arrives.
+			 */
+			const unloadBlock = react.useCallback((seq) => {
+				if (typeof seq !== "number" || session === undefined || session === null) return;
+				setUnloads((prev) => ({ ...prev, [seq]: "busy" }));
+				fetch("/context-view/unload", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ session: String(session), seq }),
+				})
+					.then((response) => response.json().then((value) => ({ ok: response.ok, value })))
+					.then(({ ok, value }) => {
+						if (ok && value !== null && value !== undefined && value.ok === true) {
+							setUnloads((prev) => ({ ...prev, [seq]: "ok" }));
+							load();
+						} else if (ok && value !== null && value !== undefined && value.reason === "nothing-to-compact") {
+							setUnloads((prev) => ({ ...prev, [seq]: "none" }));
+						} else {
+							setUnloads((prev) => ({ ...prev, [seq]: "error" }));
+						}
+					}, () => setUnloads((prev) => ({ ...prev, [seq]: "error" })));
+			}, [session, load]);
 			react.useEffect(() => {
 				load();
 				const timer = setInterval(load, 5000);
@@ -521,6 +901,17 @@ window.__ModuleLoader__.load({
 				window.addEventListener("pointerup", onUp);
 			};
 			const blocks = data !== null && Array.isArray(data.blocks) ? data.blocks : null;
+			// The dialog board: only the fragments the user pinned for the
+			// current session, in add order. The settings mirror is its source
+			// of truth, so the board works even while the host route is offline.
+			const sessionKey = session === undefined || session === null ? "" : String(session);
+			const pins = (cv.value ? parsePins(cv.value.pins) : []).filter((pin) => String(pin.session) === sessionKey);
+			// Reference-stable Markdown chrome: a fresh labels object would
+			// discard the memoized render cache of every message per refresh.
+			const mdLabels = react.useMemo(() => ({
+				code: { copyLabel: t("md.copy"), copiedLabel: t("md.copied") },
+				footnotes: t("md.footnotes")
+			}), [t]);
 			return react.createElement("div", {
 				className: "cv-panel",
 				role: "dialog",
@@ -540,7 +931,22 @@ window.__ModuleLoader__.load({
 						blocks !== null ? react.createElement("span", { className: "cv-chip", key: "used" }, t("stats.used") + " ~", react.createElement("strong", null, formatTokens(data.totalTokens)), data.contextWindow !== null && data.contextWindow !== undefined ? " / " + formatTokens(data.contextWindow) : "") : null,
 						blocks !== null ? react.createElement("span", { className: "cv-chip", key: "system" }, t("stats.system") + " ~" + formatTokens(data.systemTokens)) : null,
 						blocks !== null ? react.createElement("span", { className: "cv-chip", key: "tools" }, t("stats.tools") + " ~" + formatTokens(data.toolsTokens)) : null,
-						blocks !== null ? react.createElement("span", { className: "cv-chip", key: "messages" }, t("stats.messages") + " ~" + formatTokens(data.messageTokens)) : null
+						blocks !== null ? react.createElement("span", { className: "cv-chip", key: "messages" }, t("stats.messages") + " ~" + formatTokens(data.messageTokens)) : null,
+						react.createElement("span", { className: "cv-chip", key: "pins" }, t("stats.pins") + ": ", react.createElement("strong", null, String(pins.length)))
+					),
+					react.createElement("div", { className: "cv-segmented", role: "group", "aria-label": t("panel.title") },
+						react.createElement("button", {
+							type: "button",
+							className: mode === "dialog" ? "cv-segment cv-segmentActive" : "cv-segment",
+							"aria-pressed": mode === "dialog",
+							onClick: () => switchMode("dialog")
+						}, t("mode.dialog")),
+						react.createElement("button", {
+							type: "button",
+							className: mode === "blocks" ? "cv-segment cv-segmentActive" : "cv-segment",
+							"aria-pressed": mode === "blocks",
+							onClick: () => switchMode("blocks")
+						}, t("mode.blocks"))
 					),
 					react.createElement("button", {
 						type: "button",
@@ -559,9 +965,60 @@ window.__ModuleLoader__.load({
 				),
 				react.createElement("div", { className: "cv-list", ref: listRef },
 					error !== null ? react.createElement("div", { className: "cv-note" }, t("panel.error." + error)) : null,
-					error === null && blocks === null ? react.createElement("div", { className: "cv-note" }, t("panel.loading")) : null,
-					blocks !== null && blocks.length === 0 ? react.createElement("div", { className: "cv-note" }, t("panel.empty")) : null,
-					blocks !== null ? blocks.map((block, index) => react.createElement(BlockView, { key: String(block.seq !== undefined ? block.seq : block.kind) + "-" + String(index), block, index, t })) : null
+					mode === "dialog" ? (
+						pins.length === 0
+							? react.createElement("div", { className: "cv-note" }, t("pin.empty"))
+							: pins.map((pin, index) => {
+								const key = "p:" + pin.id;
+								return react.createElement(PinBlockView, {
+									key,
+									pin,
+									index,
+									total: pins.length,
+									labels: mdLabels,
+									t,
+									open: pinned.has(key),
+									onToggle: () => togglePin(key),
+									onRename: (title) => props.actions.renamePin(pin.id, title),
+									onMergeTo: (target) => props.actions.mergePin(pin.id, target, sessionKey),
+									onRemind: () => props.actions.remindPin(pin, t("remind.prefix"), t("remind.tag")),
+									onDelete: () => props.actions.removePin(pin.id),
+									dragId: drag,
+									dragging: drag === pin.id,
+									dropTarget: over === pin.id && drag !== null && drag !== pin.id,
+									onDragStart: () => { setDrag(pin.id); setOver(pin.id); },
+									onDragOver: () => { setOver((cur) => (cur === pin.id ? cur : pin.id)); },
+									onDragEnd: () => { setDrag(null); setOver(null); },
+									onDrop: () => {
+										if (drag !== null && drag !== pin.id) props.actions.movePin(drag, pin.id);
+										setDrag(null);
+										setOver(null);
+									}
+								});
+							})
+					) : null,
+					mode === "blocks" ? (
+						blocks === null
+							? (error === null ? react.createElement("div", { className: "cv-note" }, t("panel.loading")) : null)
+							: blocks.length === 0
+								? react.createElement("div", { className: "cv-note" }, t("panel.empty"))
+								: blocks.map((block, index) => {
+									const key = "b:" + (block.seq !== undefined ? "s" + String(block.seq) : block.kind + "-i" + String(index));
+									const seq = typeof block.seq === "number" ? block.seq : undefined;
+									const canUnload = seq !== undefined && UNLOADABLE_KINDS[block.kind] === true;
+									return react.createElement(BlockView, {
+										key,
+										block,
+										index,
+										t,
+										open: pinned.has(key),
+										onToggle: () => togglePin(key),
+										canUnload,
+										unloadStatus: seq !== undefined ? unloads[seq] : undefined,
+										onUnload: unloadBlock
+									});
+								})
+					) : null
 				),
 				react.createElement("span", { className: "cv-grip cv-gripE", onPointerDown: beginGesture("resize-e") }),
 				react.createElement("span", { className: "cv-grip cv-gripS", onPointerDown: beginGesture("resize-s") }),
@@ -642,6 +1099,103 @@ window.__ModuleLoader__.load({
 		//#region entry
 		const NS = "context-view";
 		const inject = ["slots", "locale", "settingsScope"];
+		/** Defensive snapshot of the settings scope (status/value/writable). */
+		function settingsState(scope) {
+			try {
+				return scope.getSnapshot() || {};
+			} catch {
+				return {};
+			}
+		}
+		/**
+		 * Watch page text selection and mirror it into the shared selection
+		 * store (the header button renders from it). preventDefault on the
+		 * button's mousedown keeps the selection alive through the click, so
+		 * no press-flag dance is needed here.
+		 * @returns {() => void} disposer removing every listener.
+		 */
+		function setupSelectionWatcher(selStore, enabledFn) {
+			if (typeof document === "undefined" || typeof window === "undefined") {
+				return () => {};
+			}
+			const clear = () => {
+				if (selStore.getSnapshot().text !== "") selStore.set({ text: "" });
+			};
+			const read = () => {
+				const selection = window.getSelection();
+				if (selection === null || selection.isCollapsed) return clear();
+				const text = String(selection.toString()).trim();
+				if (text.length < 2 || !enabledFn()) return clear();
+				if (selStore.getSnapshot().text !== text) selStore.set({ text });
+			};
+			const onMouseUp = () => setTimeout(read, 0);
+			const onKeyup = (event) => {
+				if (event.shiftKey || event.key === "Shift") read();
+			};
+			const onSelectionChange = () => {
+				const selection = window.getSelection();
+				if (selection === null || selection.isCollapsed) clear();
+			};
+			const onScroll = () => clear();
+			const onKeyDown = (event) => {
+				if (event.key === "Escape") clear();
+			};
+			document.addEventListener("mouseup", onMouseUp);
+			document.addEventListener("keyup", onKeyup);
+			document.addEventListener("selectionchange", onSelectionChange);
+			document.addEventListener("keydown", onKeyDown);
+			window.addEventListener("scroll", onScroll, true);
+			return () => {
+				document.removeEventListener("mouseup", onMouseUp);
+				document.removeEventListener("keyup", onKeyup);
+				document.removeEventListener("selectionchange", onSelectionChange);
+				document.removeEventListener("keydown", onKeyDown);
+				window.removeEventListener("scroll", onScroll, true);
+			};
+		}
+		/**
+		 * The "To context" button seated in the chat-header corner (the
+		 * utilities list): visible only while a valid text selection exists.
+		 * Clicking adds exactly the selection to the session without making
+		 * the model answer: the prompt is followed by a cancel of the turn it
+		 * woke, with a few retries while the wake is still climbing.
+		 */
+		function SelectionAddAction(props) {
+			const cv = props.useCv(identity);
+			const sel = props.useSel(identity);
+			const t = pickT(cv, props.t);
+			const [flash, setFlash] = react.useState("");
+			const timerRef = react.useRef(null);
+			react.useEffect(() => () => {
+				if (timerRef.current !== null) clearTimeout(timerRef.current);
+			}, []);
+			if (!isEnabled(cv)) return null;
+			if (sel.text === "" && flash === "") return null;
+			const onClick = () => {
+				if (flash !== "") return;
+				const text = sel.text;
+				if (text === "") return;
+				void props.actions.addSelected(props.sessionId, text).then((ok) => {
+					setFlash(ok ? "ok" : "fail");
+					if (timerRef.current !== null) clearTimeout(timerRef.current);
+					timerRef.current = setTimeout(() => {
+						timerRef.current = null;
+						setFlash("");
+					}, 900);
+				});
+			};
+			const label = flash === "ok" ? t("addctx.ok") : flash === "fail" ? t("addctx.fail") : t("addctx.label");
+			return react.createElement("button", {
+				type: "button",
+				className: flash === "ok" ? "cv-selbtn cv-selbtnOk" : flash === "fail" ? "cv-selbtn cv-selbtnFail" : "cv-selbtn",
+				title: t("addctx.hint"),
+				onMouseDown: (event) => {
+					// Keep the browser selection alive through the click.
+					event.preventDefault();
+				},
+				onClick
+			}, label);
+		}
 		/**
 		 * Client plugin body: dictionaries, the settings scope, the shared view
 		 * store, the composer button, the overlay window, and the settings card.
@@ -651,6 +1205,161 @@ window.__ModuleLoader__.load({
 			ctx.effect(() => ctx.locale.register(NS, { en, ru }), "dsh-context: dictionaries");
 			const scope = ctx.settingsScope.bind({ namespace: NS });
 			const view = createMiniStore({ open: false, session: null });
+			const sel = createMiniStore({ text: "" });
+			ctx.effect(
+				() => setupSelectionWatcher(sel, () => isEnabled(settingsState(scope))),
+				"dsh-context: selection watcher",
+			);
+			/**
+			 * Pins source of truth. Writes go to the settings service and come
+			 * back through its mirror; between the two, the mirror still shows
+			 * the PRE-write board. A last-written override keeps back-to-back
+			 * board edits (rename then merge, two fast pins) from reading a
+			 * stale array and overwriting each other; it retires as soon as
+			 * the mirror catches up (or after a safety window).
+			 */
+			let pinsOverride = null;
+			let pinsOverrideAt = 0;
+			const pinsRaw = () => {
+				const state = settingsState(scope);
+				const mirrored = state.value && typeof state.value.pins === "string" ? state.value.pins : "";
+				if (pinsOverride !== null) {
+					if (mirrored === pinsOverride || Date.now() - pinsOverrideAt > 4000) pinsOverride = null;
+					else return pinsOverride;
+				}
+				return mirrored;
+			};
+			const writePins = (arr) => {
+				pinsOverride = JSON.stringify(arr);
+				pinsOverrideAt = Date.now();
+				void scope.set("pins", pinsOverride);
+			};
+			/**
+			 * Pin the selected text onto the dialog board: the fragment is
+			 * stored verbatim in this plugin's settings namespace (mirrored
+			 * live, persisted across restarts, invisible to the model). No
+			 * prompt, no cancel, no model call — nothing in the session
+			 * wakes up from this click.
+			 */
+			const addSelected = (sessionId, text) => {
+				if (typeof sessionId !== "string" || sessionId === "" || typeof text !== "string" || text.trim() === "") {
+					return Promise.resolve(false);
+				}
+				const fragment = text.trim();
+				if (fragment.length > PIN_MAX_TEXT) return Promise.resolve(false);
+				const pins = parsePins(pinsRaw());
+				let chars = fragment.length;
+				for (const pin of pins) chars += String(pin.text).length;
+				if (pins.length >= PIN_MAX_COUNT || chars > PINS_TOTAL_CHARS) return Promise.resolve(false);
+				pins.push({
+					id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+					session: sessionId,
+					text: fragment,
+					time: Date.now(),
+				});
+				writePins(pins);
+				try {
+					const selection = window.getSelection();
+					if (selection !== null) selection.removeAllRanges();
+				} catch {
+					// Selection APIs are best-effort.
+				}
+				sel.set({ text: "" });
+				return Promise.resolve(true);
+			};
+			/** Drop one fragment from the board, by pin id. */
+			const removePin = (pinId) => {
+				if (typeof pinId !== "string" || pinId === "") return;
+				const pins = parsePins(pinsRaw()).filter((pin) => pin.id !== pinId);
+				writePins(pins);
+			};
+			/** Set (or clear with "") the display name of a pinned fragment. */
+			const renamePin = (pinId, title) => {
+				if (typeof pinId !== "string" || pinId === "") return;
+				const clean = typeof title === "string" ? title.replace(/\s+/g, " ").trim().slice(0, 120) : "";
+				const pins = parsePins(pinsRaw());
+				const index = pins.findIndex((pin) => pin.id === pinId);
+				if (index < 0) return;
+				const next = pins.slice();
+				const updated = { ...next[index] };
+				if (clean === "") delete updated.title;
+				else updated.title = clean;
+				next[index] = updated;
+				writePins(next);
+			};
+			/**
+			 * Merge one board card INTO the card with a given display number
+			 * (1-based, the numbers printed on this session's cards). Text is
+			 * joined chronologically under a `***` rule, the result keeps the
+			 * TARGET's slot, and the source card leaves the board.
+			 */
+			const mergePin = (pinId, targetNumber) => {
+				if (typeof pinId !== "string" || pinId === "") return;
+				if (!Number.isInteger(targetNumber)) return;
+				const pins = parsePins(pinsRaw());
+				const index = pins.findIndex((pin) => pin.id === pinId);
+				if (index < 0) return;
+				const cur = pins[index];
+				// Board order = global array order filtered to this session.
+				const board = [];
+				for (let j = 0; j < pins.length; j += 1) {
+					if (String(pins[j].session) === String(cur.session)) board.push(j);
+				}
+				if (targetNumber < 1 || targetNumber > board.length) return;
+				const targetGlobal = board[targetNumber - 1];
+				if (targetGlobal === index) return;
+				const target = pins[targetGlobal];
+				const first = index < targetGlobal ? cur : target;
+				const second = index < targetGlobal ? target : cur;
+				const merged = String(first.text) + "\n\n***\n\n" + String(second.text);
+				// Past the host's per-pin ceiling the merge would silently drop
+				// the card on the next settings load — refuse instead.
+				if (merged.length > PIN_MAX_TEXT) return;
+				const joined = {
+					...target,
+					title: typeof target.title === "string" && target.title !== "" ? target.title : typeof cur.title === "string" ? cur.title : "",
+					text: merged,
+				};
+				if (joined.title === "") delete joined.title;
+				const next = pins.slice();
+				next[targetGlobal] = joined;
+				next.splice(index, 1);
+				writePins(next);
+			};
+			/**
+			 * Remind: send one pinned fragment back into the LIVE context under
+			 * a reminder banner as a plugin-sourced notice — model-visible on
+			 * the next request, no turn opens, the model does not start reading
+			 * anything now. The card stays on the board; the boolean drives
+			 * the button's ok/fail flash.
+			 */
+			const remindPin = (pin, prefix, tag) => {
+				if (pin === undefined || pin === null || typeof pin.id !== "string" || pin.id === "") return Promise.resolve(false);
+				const body = String(prefix) + "\n\n" + String(pin.text === undefined ? "" : pin.text);
+				if (body.length > PIN_MAX_TEXT) return Promise.resolve(false);
+				const flat = String(pin.text === undefined ? "" : pin.text).replace(/\s+/g, " ").trim();
+				const summary = (String(tag) + ": " + flat).slice(0, 200);
+				return fetch("/context-view/remind", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ session: String(pin.session === undefined ? "" : pin.session), text: body, summary }),
+				})
+					.then((response) => response.json().then((value) => response.ok === true && value !== null && value !== undefined && value.ok === true))
+					.then((ok) => ok === true, () => false);
+			};
+			/** Reorder: move the dragged card to just before the target card. */
+			const movePin = (dragId, targetId) => {
+				if (typeof dragId !== "string" || typeof targetId !== "string" || dragId === targetId) return;
+				const pins = parsePins(pinsRaw());
+				const from = pins.findIndex((pin) => pin.id === dragId);
+				const to = pins.findIndex((pin) => pin.id === targetId);
+				if (from < 0 || to < 0) return;
+				if (String(pins[from].session) !== String(pins[to].session)) return;
+				const next = pins.slice();
+				const moved = next.splice(from, 1)[0];
+				next.splice(from < to ? to - 1 : to, 0, moved);
+				writePins(next);
+			};
 			const actions = {
 				toggleWindow: () => {
 					const current = view.getSnapshot();
@@ -664,6 +1373,12 @@ window.__ModuleLoader__.load({
 					const current = view.getSnapshot();
 					if (current.session !== id) view.set({ ...current, session: id });
 				},
+				addSelected,
+				removePin,
+				renamePin,
+				mergePin,
+				remindPin,
+				movePin,
 				setEnabled: (next) => {
 					void scope.set("enabled", next);
 				},
@@ -671,7 +1386,7 @@ window.__ModuleLoader__.load({
 					void scope.set("language", next);
 				}
 			};
-			const face = () => ({ hooks: { cv: scope, view }, actions });
+			const face = () => ({ hooks: { cv: scope, view, sel }, actions });
 			ctx.slots.inject("conversation.input.right", () => ctx.slots.register({
 				name: "conversation.input.right",
 				id: "context-view-button",
@@ -679,6 +1394,13 @@ window.__ModuleLoader__.load({
 				locale: NS,
 				inject: face
 			}, ContextVizSeat));
+			ctx.slots.inject("conversation.session.header.utilities", () => ctx.slots.register({
+				name: "conversation.session.header.utilities",
+				id: "context-view-add-selection",
+				order: 60,
+				locale: NS,
+				inject: face
+			}, SelectionAddAction));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
 				id: "context-view-window",
